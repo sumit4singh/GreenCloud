@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: CF for lambda
+Parameters:
+  BucketName:
+    Type: String
+    Description: S3 bucket name must be unique
+    MinLength: "1"
+    MaxLength: "16"
+    ConstraintDescription: Small letters, numiricals, '.' and '-' are allowed.
+Resources:
+  ProvisionS3:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties: 
+      BucketName: !Sub ${BucketName}
+  MyLambdaFunction:
+    Type: AWS::Lambda::Function
+    DeletionPolicy: Delete
+    Properties:
+      Code:
+        ZipFile: !Sub |
+          import boto3
+          def lambda_handler(event, context):
+            session = boto3.Session(region_name='us-east-1')
+            translate = session.client(service_name='translate', use_ssl=True)
+            result = translate.translate_text(Text=event['text'],
+                                      SourceLanguageCode="en", TargetLanguageCode=event['language'])
+            polly = session.client(service_name='polly', use_ssl=True)
+            if event['language'] == "hi":
+              voiceId = 'Aditi'
+              languageCode = 'hi-IN'
+            elif event['language'] == "fr-CA":
+              voiceId = 'Chantal'
+              languageCode = 'fr-CA'
+            elif event['language'] == "ar":
+              voiceId = 'Zeina'
+              languageCode = 'arb'
+            elif event['language'] == "it":
+              voiceId = 'Carla'
+              languageCode = 'it-IT'
+            elif event['language'] == "de":
+              voiceId = 'Marlene'
+              languageCode = 'de-DE'
+            audio = polly.start_speech_synthesis_task(Text=result.get('TranslatedText'),
+                                            LanguageCode=languageCode,
+                                                VoiceId=voiceId,
+                                                OutputFormat='mp3',
+                                                Engine="standard",
+                                                TextType='text',
+                                                SampleRate='8000',
+                                                OutputS3BucketName=${BucketName},
+                                                OutputS3KeyPrefix="greenclouduser"
+                                                )
+            object_name = audio['SynthesisTask']['OutputUri']
+            print(object_name)
+            startIndex = object_name.find('greenclouduser')
+            keyName = object_name[startIndex: len(object_name)]
+            print(keyName)
+            s3 = session.client('s3')
+            resp = s3.generate_presigned_url('get_object',
+                            Params={'Bucket': ${BucketName},
+                            'Key': keyName},
+                            ExpiresIn=100000)
+    
+            return str(resp)      
+      Role: arn:aws:iam::113820710577:role/LabRole
+      Description: Handles translation and polly
+      Runtime: python3.9
+      Handler: index.lambda_handler
+      FunctionName: lambdaFunction

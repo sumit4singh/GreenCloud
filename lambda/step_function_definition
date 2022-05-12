@@ -1,0 +1,97 @@
+{
+  "Comment": "A description of my state machine",
+  "StartAt": "Lambda Invoke",
+  "States": {
+    "Lambda Invoke": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "Payload.$": "$",
+        "FunctionName": "arn:aws:lambda:us-east-1:113820710577:function:a4lambda:$LATEST"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 6,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "is_tier_1"
+    },
+    "is_tier_1": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.body.tier",
+          "StringMatches": "tier 1",
+          "Next": "Tier 1 SQS"
+        }
+      ],
+      "Default": "is_tier_2"
+    },
+    "is_tier_2": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.body.tier",
+          "StringMatches": "tier 2",
+          "Next": "Tier 2 SQS"
+        }
+      ],
+      "Default": "is_tier_3"
+    },
+    "is_tier_3": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.body.tier",
+          "StringMatches": "tier 3",
+          "Next": "Tier 3 SQS"
+        }
+      ],
+      "Default": "Default SQS"
+    },
+    "Default SQS": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sqs:sendMessage",
+      "Parameters": {
+        "MessageBody.$": "$",
+        "QueueUrl": "https://sqs.us-east-1.amazonaws.com/113820710577/default_queue"
+      },
+      "End": true
+    },
+    "Tier 3 SQS": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sqs:sendMessage",
+      "Parameters": {
+        "MessageBody.$": "$",
+        "QueueUrl": "https://sqs.us-east-1.amazonaws.com/113820710577/tier_3_queue"
+      },
+      "End": true
+    },
+    "Tier 2 SQS": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sqs:sendMessage",
+      "Parameters": {
+        "MessageBody.$": "$",
+        "QueueUrl": "https://sqs.us-east-1.amazonaws.com/113820710577/tier_2_queue"
+      },
+      "End": true
+    },
+    "Tier 1 SQS": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sqs:sendMessage",
+      "Parameters": {
+        "MessageBody.$": "$",
+        "QueueUrl": "https://sqs.us-east-1.amazonaws.com/113820710577/tier_1_queue"
+      },
+      "End": true
+    }
+  }
+}
